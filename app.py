@@ -1,15 +1,14 @@
-from flask import Flask, request, render_template
+import streamlit as st
 import pickle
 import pandas as pd
 import os
-
-app = Flask(__name__)
 
 # Load the encoder, scaler, and model
 scaler_file = os.path.join('static', 'scaler.pkl')
 encoder_file = os.path.join('static', 'encoder.pkl')
 model_file = os.path.join('static', 'best_rf_model.pkl')
 
+# Load the required files
 with open(scaler_file, 'rb') as f:
     scaler = pickle.load(f)
 
@@ -22,36 +21,35 @@ with open(model_file, 'rb') as f:
 # Define the complete list of features used during training
 required_features = ['Age', 'DurationOfPitch', 'PreferredPropertyStar', 'MonthlyIncome', 'TotalVisiting']
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+# Streamlit app configuration
+st.title("Wellness Tourism Prediction")
+st.markdown("Enter the details below to predict whether the user is likely to take the Wellness Tourism Package.")
 
-@app.route('/predict', methods=['POST'])
-def predict():
+# Collect input features
+def user_input():
+    inputs = {}
+    for feature in required_features:
+        inputs[feature] = st.number_input(f"{feature}", min_value=0.0, step=0.1)
+    return inputs
+
+user_inputs = user_input()
+
+if st.button("Predict"):
     try:
-        # Collect input features
-        inputs = [float(x) for x in request.form.values()]
-        input_df = pd.DataFrame([inputs], columns=required_features[:len(inputs)])
-
-        # Handle missing features by adding them with default values
-        for feature in required_features:
-            if feature not in input_df.columns:
-                input_df[feature] = 0  # Default value, adjust as per your dataset
-
-        # Ensure column order matches training
-        input_df = input_df[required_features]
+        # Convert input dictionary to DataFrame
+        input_df = pd.DataFrame([user_inputs])
 
         # Scale the data
         scaled_data = scaler.transform(input_df)
 
         # Predict using the model
         prediction = model.predict(scaled_data)
-        result = 'User is likely to take the Wellness Tourism Package' if prediction[0] == 1 else 'User is not likely to take the Wellness Tourism Package'
-        result_class = 'positive-result' if prediction[0] == 1 else 'negative-result'
 
-        return render_template('result.html', prediction_text= result, result_class=result_class)
+        # Display the result
+        if prediction[0] == 1:
+            st.success("User is likely to take the Wellness Tourism Package")
+        else:
+            st.error("User is not likely to take the Wellness Tourism Package")
+
     except Exception as e:
-        return render_template('error.html', error_message=f"Error: {e}")
-
-if __name__ == "__main__":
-    app.run(debug=True)
+        st.error(f"Error: {e}")
